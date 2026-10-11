@@ -48,6 +48,9 @@ static void initLwsLogging() {
 // Every address `host` resolves to, in getaddrinfo order. lws 4.3 treats a
 // refused/reset connect (POLLHUP) as a dead socket and gives up instead of
 // moving on to the next A record, so the fallback is done here instead.
+// IPv6 results are dropped when lws is built without LWS_WITH_IPV6 (desktop
+// and Switch both are): it rejects such an address synchronously, without a
+// CLIENT_CONNECTION_ERROR, and `localhost` on macOS resolves to ::1 first.
 static std::vector<std::string> resolveAddresses(const std::string &host, int port) {
   std::vector<std::string> out;
   addrinfo hints{};
@@ -62,7 +65,7 @@ static std::vector<std::string> resolveAddresses(const std::string &host, int po
       const void *addr = nullptr;
       if (ai->ai_family == AF_INET)
         addr = &reinterpret_cast<const sockaddr_in *>(ai->ai_addr)->sin_addr;
-#ifdef AF_INET6
+#if defined(AF_INET6) && defined(LWS_WITH_IPV6)
       else if (ai->ai_family == AF_INET6)
         addr = &reinterpret_cast<const sockaddr_in6 *>(ai->ai_addr)->sin6_addr;
 #endif
@@ -441,10 +444,28 @@ void WebSocket::Impl::run() {
       addressIndex + 1,
       addresses.size()
     );
-    // A null return means CLIENT_CONNECTION_ERROR already ran: it either
-    // queued the next address or reported the failure
-    if (!lws_client_connect_via_info(&ci) && !retryPending)
-      finish(1006, "connection failed", "connection failed");
+    // A null return usually means CLIENT_CONNECTION_ERROR already ran: it
+    // either queued the next address or reported the failure. Some rejections
+    // (e.g. an address family lws was built without) skip the callback, so
+    // the next address is queued here too.
+    if (!lws_client_connect_via_info(&ci) && !retryPending && !finished) {
+      bool aborted;
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        aborted = closeRequested;
+      }
+      if (!aborted && addressIndex + 1 < addresses.size()) {
+        brls::Logger::warning(
+          "WebSocket: {} via {} failed (rejected by lws), trying the next address",
+          host,
+          addresses[addressIndex]
+        );
+        addressIndex++;
+        retryPending = true;
+      } else {
+        finish(1006, "connection failed", "connection failed");
+      }
+    }
 
     // send()/close() calls that raced this attempt found no wsi to act on
     std::lock_guard<std::mutex> lock(mutex);
