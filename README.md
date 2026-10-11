@@ -91,3 +91,4 @@ VKPCNX_INSECURE_TLS=1 VKPCNX_PLAY_URL='playkey:///?host=localhost&port=19000&tok
 - `o` — открыть экран первоначальной настройки (OnboardingActivity).
 - `s` — открыть боковую панель стрима (StreamOverlay) без данных.
 - `p` — открыть песочницу (StreamActivity::Playground).
+- `c` — сохранить скриншот окна (без рамки и заголовка) в `~/Desktop/vkpcnx-<дата>.png`.

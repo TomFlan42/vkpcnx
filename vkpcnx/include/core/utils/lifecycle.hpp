@@ -4,9 +4,12 @@
 #include "activity/onboarding_activity.hpp"
 #include "activity/stream_activity.hpp"
 #include "borealis/core/application.hpp"
+#include "core/utils/screenshot.hpp"
 #include "view/side_panel.hpp"
 #include "view/stream_overlay.hpp"
 #include <atomic>
+#include <cstdlib>
+#include <ctime>
 #include <string>
 #include <thread>
 
@@ -40,6 +43,21 @@ class DebugKeyListener {
         auto content = new StreamOverlay();
         vkpcnx::SidePanel *panel = new vkpcnx::SidePanel(content, 480);
         panel->open();
+      });
+      break;
+    case 'c':
+      brls::sync([] {
+        // After the swap, the back buffer still holds the frame just rendered
+        char name[64];
+        std::time_t now = std::time(nullptr);
+        std::strftime(name, sizeof name, "vkpcnx-%Y%m%d-%H%M%S.png", std::localtime(&now));
+        const char *home = std::getenv("HOME");
+        std::string path = std::string(home ? home : ".") + "/Desktop/" + name;
+        std::string err = saveScreenshot(path);
+        if (err.empty())
+          brls::Logger::info("screenshot saved to {}", path);
+        else
+          brls::Logger::error("screenshot failed: {}", err);
       });
       break;
     case 'p':

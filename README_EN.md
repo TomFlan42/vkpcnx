@@ -93,3 +93,4 @@ Available only in the desktop build (not on Switch or Windows), read from stdin 
 - `o` — open the initial setup screen (OnboardingActivity).
 - `s` — open the stream side panel (StreamOverlay) with no data.
 - `p` — open the Playground (StreamActivity::Playground).
+- `c` — save a screenshot of the window contents (no frame or title bar) to `~/Desktop/vkpcnx-<timestamp>.png`.
