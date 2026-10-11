@@ -89,7 +89,8 @@ public:
 
   // Loading-screen text (queue position, profile loading …)
   std::function<void(const std::string &header, const std::string &message, int progress)> onStatus;
-  std::function<void(const std::string &message)> onNotification;
+  // M_NOTIFICATION; urgent = NOTIFY_ERROR
+  std::function<void(const std::string &message, bool urgent)> onNotification;
   std::function<void(const SessionError &error)> onError;
   // Game-stream mode: connect to the game server now (§5), then call
   // reportServerConnection()

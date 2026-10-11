@@ -412,7 +412,16 @@ class MockCloud:
                 elif t == pc.CS_STREAMS_STATUS:
                     s = cs.StreamsStatus(); s.ParseFromString(payload)
                     log.info("gs: *** streams status flags=%d ***", s.flags)
-                    await send(pc.SC_LEFT_GAME_TIME, sc.LeftGameTime(count_seconds=3599).SerializeToString())
+                    if self.args.time_left_warning > 0:
+                        # 901 → 899 crosses the client's 15-minute mark (HOME LED blink)
+                        await send(pc.SC_LEFT_GAME_TIME, sc.LeftGameTime(count_seconds=901).SerializeToString())
+                        async def cross_warning():
+                            await asyncio.sleep(self.args.time_left_warning)
+                            log.info("gs: sending 899 s left")
+                            await send(pc.SC_LEFT_GAME_TIME, sc.LeftGameTime(count_seconds=899).SerializeToString())
+                        asyncio.ensure_future(cross_warning())
+                    else:
+                        await send(pc.SC_LEFT_GAME_TIME, sc.LeftGameTime(count_seconds=3599).SerializeToString())
                     await send(pc.SC_GAME_WAS_LAUNCHED, sc.GameWasLaunched(executable="game.exe").SerializeToString())
                     if self.args.end_after > 0:
                         async def end():
@@ -441,6 +450,8 @@ async def main():
     ap.add_argument("--ping-port", type=int, default=19001)
     ap.add_argument("--gs-port", type=int, default=19003)
     ap.add_argument("--end-after", type=float, default=0, help="send SC_EXIT_GAME N s after streams status")
+    ap.add_argument("--time-left-warning", type=float, default=0,
+                    help="send 901 s left, then 899 s left N s later (crosses the 15-min LED warning)")
     ap.add_argument("--dump-sdp", action="store_true")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

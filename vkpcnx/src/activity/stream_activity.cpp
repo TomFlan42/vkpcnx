@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "core/controls.hpp"
+#include "core/platform/home_led.hpp"
 #include "core/settings.hpp"
 #include "core/stream/sdp_munging.hpp"
 #include "core/utils/display.hpp"
@@ -29,6 +30,10 @@ using namespace vkpcnx::stream;
 // reports a huge count_seconds (observed: ~10 years). No real session timer
 // runs anywhere close to this, so treat it as unlimited rather than print it.
 static constexpr int64_t kUnlimitedTimeLeftThresholdSeconds = 7LL * 24 * 3600;
+
+// Remaining play time at which the HOME LED blinks, when a time-left update
+// crosses it going down
+static constexpr int64_t kTimeLeftLedWarningsSeconds[] = {15 * 60, 5 * 60, 60};
 
 // ---- key mapping (§9.1): GLFW key code → DirectInput scan code ----------------
 
@@ -377,6 +382,7 @@ StreamActivity::~StreamActivity() {
   if (hudTimer_)
     brls::cancelDelay(hudTimer_);
   session_.reset();
+  platform::clearHomeLed();
 }
 
 StreamSession::Config StreamActivity::buildConfig() const {
@@ -514,7 +520,11 @@ void StreamActivity::setupSession() {
     if (!t.empty())
       statusText->setText(t);
   };
-  session->onNotification = [](const std::string &m) { brls::Application::notify(m); };
+  session->onNotification = [](const std::string &m, bool urgent) {
+    brls::Application::notify(m);
+    if (urgent)
+      platform::blinkHomeLed();
+  };
   session->onError = [this](const SessionError &e) {
     // Not every source logs before reporting; what the user saw belongs in the log
     brls::Logger::warning(
@@ -537,6 +547,13 @@ void StreamActivity::setupSession() {
       leave();
   };
   session->onTimeLeft = [this](int64_t seconds) {
+    for (int64_t warning : kTimeLeftLedWarningsSeconds) {
+      if (lastTimeLeftSeconds_ > warning && seconds <= warning) {
+        brls::Logger::info("Stream: {} s of play time left, blinking HOME LED", seconds);
+        platform::blinkHomeLed();
+        break;
+      }
+    }
     lastTimeLeftSeconds_ = seconds;
     if (seconds >= kUnlimitedTimeLeftThresholdSeconds) {
       timer->setVisibility(brls::Visibility::GONE);

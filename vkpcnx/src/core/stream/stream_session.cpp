@@ -47,9 +47,9 @@ StreamSession::StreamSession() : input_(rtc_) {
     if (onStatus)
       onStatus(h, m, p);
   };
-  manager_.onNotification = [this](const std::string &m) {
+  manager_.onNotification = [this](const std::string &m, bool urgent) {
     if (onNotification)
-      onNotification(m);
+      onNotification(m, urgent);
   };
   manager_.onError = [this](const SessionError &e) { fail(e); };
   manager_.onDirectionPlay = [this](const GameServerAddress &server) {
@@ -128,9 +128,9 @@ StreamSession::StreamSession() : input_(rtc_) {
     if (onError)
       onError(e);
   };
-  gameServer_.onNotification = [this](const std::string &m) {
+  gameServer_.onNotification = [this](const std::string &m, bool urgent) {
     if (onNotification)
-      onNotification(m);
+      onNotification(m, urgent);
   };
   gameServer_.onStatus = [this](const std::string &text) {
     if (state_ != State::Streaming && onStatus)

@@ -56,7 +56,7 @@ public:
   std::function<void(State state)> onStateChange;
   std::function<void(const std::string &header, const std::string &text, int progress)> onStatus;
   std::function<void(const SessionError &error)> onError;
-  std::function<void(const std::string &message)> onNotification;
+  std::function<void(const std::string &message, bool urgent)> onNotification;
   std::function<void(int64_t secondsLeft)> onTimeLeft;
   std::function<void()> onTimerDisabled;
   std::function<void(GameServerClient::EndReason reason)> onSessionEnd;

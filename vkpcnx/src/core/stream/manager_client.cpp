@@ -503,7 +503,7 @@ void ManagerClient::handleFrame(const Frame &frame) {
     proto::Notification n;
     n.ParseFromString(frame.payload);
     if (onNotification)
-      onNotification(n.message());
+      onNotification(n.message(), n.notification_type() == proto::NOTIFY_ERROR);
     break;
   }
 

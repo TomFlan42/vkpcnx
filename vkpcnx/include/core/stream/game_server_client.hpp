@@ -57,7 +57,8 @@ public:
   std::function<void(StreamType type, const std::string &iceJson)> onIceCandidate;
   std::function<void(EndReason reason)> onSessionEnd;
   std::function<void(const SessionError &error)> onError;
-  std::function<void(const std::string &message)> onNotification;
+  // M_NOTIFICATION; urgent = NOTIFY_ERROR
+  std::function<void(const std::string &message, bool urgent)> onNotification;
   std::function<void(const std::string &text)> onStatus; // SC_GAME_UPDATE_BEGIN etc.
   std::function<void(const std::string &name)> onVmName; // SC_VM_NAME
   // §5.6: several SC_*_TIME_LEFT sources can fire together; reports whichever

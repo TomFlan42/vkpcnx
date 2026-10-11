@@ -448,7 +448,7 @@ void GameServerClient::handleFrame(const Frame &frame) {
     n.ParseFromString(frame.payload);
     brls::Logger::debug("GameServer: <- M_NOTIFICATION {{ {} }}", n.ShortDebugString());
     if (onNotification)
-      onNotification(n.message());
+      onNotification(n.message(), n.notification_type() == proto::NOTIFY_ERROR);
     break;
   }
   case MessageType::M_BYE: {
