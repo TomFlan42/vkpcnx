@@ -1598,10 +1598,11 @@ void StreamActivity::logStats() {
   uint64_t bytes = delta(s.videoBytes, p.videoBytes);
   uint64_t received = delta(s.rtpPacketsReceived, p.rtpPacketsReceived);
   uint64_t lost = delta(s.rtpPacketsLost, p.rtpPacketsLost);
+  uint64_t recovered = delta(s.rtpPacketsRecovered, p.rtpPacketsRecovered);
   brls::Logger::debug(
     "Stats: render {:.1f} fps, decode {:.1f} fps, {:.2f} Mbit/s, rtt {}, input rtt {:.1f} ms, "
-    "decode {:.1f} ms, rtp lost {}/{}, decode errors +{}, dropped +{}, keyframe req +{}, "
-    "audio buffered {}, {}x{} {}/{}",
+    "decode {:.1f} ms, rtp lost {}/{} (+{} recovered), decode errors +{}, dropped +{}, "
+    "keyframe req +{}, audio buffered {}, {}x{} {}/{}",
     video->renderedFps(),
     frames / seconds,
     bytes * 8 / seconds / 1e6,
@@ -1610,6 +1611,7 @@ void StreamActivity::logStats() {
     s.decoder.avgDecodeMs,
     lost,
     received + lost,
+    recovered,
     delta(s.decoder.decodeErrors, p.decoder.decodeErrors),
     delta(s.decoder.framesDropped, p.decoder.framesDropped),
     delta(s.keyframeRequests, p.keyframeRequests),

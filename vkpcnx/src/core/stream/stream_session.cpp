@@ -594,6 +594,7 @@ StreamSession::Stats StreamSession::stats() const {
   s.videoBytes = r.videoBytesReceived;
   s.rtpPacketsReceived = r.rtpPacketsReceived;
   s.rtpPacketsLost = r.rtpPacketsLost;
+  s.rtpPacketsRecovered = r.rtpPacketsRecovered;
   s.keyframeRequests = r.keyframeRequests;
   s.decoder = decoder_.stats();
   s.audioBufferedFrames = audioOutput_.bufferedFrames();

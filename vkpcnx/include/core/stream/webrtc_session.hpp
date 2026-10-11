@@ -52,7 +52,7 @@ public:
   // Complete H.264 access unit (Annex B) / Opus packet with the RTP timestamp
   std::function<void(const rtc::binary &frame, uint32_t rtpTimestamp)> onVideoFrame;
   std::function<void(const rtc::binary &packet, uint32_t rtpTimestamp)> onAudioFrame;
-  // Video RTP packets went missing (called on the WebRTC thread)
+  // Video RTP packets were given up after NACKs (called on the WebRTC thread)
   std::function<void()> onVideoLoss;
   std::function<void()> onDataChannelOpen;
   std::function<void(const rtc::binary &message)> onDataChannelMessage;
@@ -87,7 +87,8 @@ public:
     size_t audioBytesReceived = 0;
     size_t inputsBytesSent = 0;
     uint64_t rtpPacketsReceived = 0; // video, cumulative over the session
-    uint64_t rtpPacketsLost = 0;     // sequence gaps
+    uint64_t rtpPacketsLost = 0;     // still missing after NACKs and the reorder wait
+    uint64_t rtpPacketsRecovered = 0; // retransmitted after a NACK
     uint64_t keyframeRequests = 0;   // PLIs sent after decode errors
     std::optional<std::chrono::milliseconds> videoRtt;
     std::string videoLocalCandidate, videoRemoteCandidate;
@@ -129,6 +130,7 @@ private:
   std::atomic<size_t> audioBytes_{0};
   std::atomic<uint64_t> rtpReceived_{0};
   std::atomic<uint64_t> rtpLost_{0};
+  std::atomic<uint64_t> rtpRecovered_{0};
   std::atomic<uint64_t> keyframeRequests_{0};
 };
 

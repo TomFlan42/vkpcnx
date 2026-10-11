@@ -1,8 +1,12 @@
 #include "core/stream/webrtc_session.hpp"
 
+#include "core/stream/rtp_receive_buffer.hpp"
+
+#include <algorithm>
 #include <borealis/core/logger.hpp>
 #include <chrono>
 #include <cstdlib>
+#include <map>
 #include <nlohmann/json.hpp>
 #include <sstream>
 
@@ -24,61 +28,38 @@ static const H264Offer H264_OFFERS[] = {
   {127, 125, "42e01f"}, // ConstrainedBase
 };
 
-// Logs video RTP sequence gaps once a second. Chained last so it sees the raw
-// packets before the depacketizer; tells network loss apart from decoder errors.
-class RtpLossCounter final : public rtc::MediaHandler {
+// Once a second, a summary of what the receive buffer had to deal with
+class RtpLossLog {
 public:
-  // onPackets(received, lost) runs once per incoming batch, for the stats
-  RtpLossCounter(std::function<void()> onLoss, std::function<void(uint64_t, uint64_t)> onPackets)
-      : onLoss_(std::move(onLoss)), onPackets_(std::move(onPackets)) {}
-
-  void incoming(rtc::message_vector &messages, const rtc::message_callback &) override {
-    uint64_t batchReceived = 0, batchLost = 0;
-    for (const auto &m : messages) {
-      if (m->type != rtc::Message::Binary || m->size() < sizeof(rtc::RtpHeader))
-        continue;
-      auto *h = reinterpret_cast<const rtc::RtpHeader *>(m->data());
-      bool video = false;
-      for (const auto &o : H264_OFFERS)
-        video |= h->payloadType() == o.pt;
-      if (!video)
-        continue;
-      uint16_t seq = h->seqNumber();
-      if (started_) {
-        auto gap = static_cast<uint16_t>(seq - static_cast<uint16_t>(last_ + 1));
-        if (gap == 0 || gap < 0x8000) { // ahead: in order or after a gap
-          lost_ += gap;
-          batchLost += gap;
-          last_ = seq;
-          if (gap && onLoss_)
-            onLoss_();
-        } // behind: reordered or duplicate, keep last_
-      } else {
-        started_ = true;
-        last_ = seq;
-      }
-      received_++;
-      batchReceived++;
-    }
-    if (onPackets_ && (batchReceived || batchLost))
-      onPackets_(batchReceived, batchLost);
+  void add(const RtpReceiveBuffer::Counters &d) {
+    sum_.received += d.received;
+    sum_.lost += d.lost;
+    sum_.recovered += d.recovered;
+    sum_.late += d.late;
+    sum_.nacked += d.nacked;
+    sum_.duplicates += d.duplicates;
+    sum_.lateMax = std::max(sum_.lateMax, d.lateMax);
     auto now = std::chrono::steady_clock::now();
-    if (now - since_ >= std::chrono::seconds(1)) {
-      if (lost_ > 0)
-        brls::Logger::warning(
-          "Video RTP: {} of {} packets lost in the last second", lost_, lost_ + received_
-        );
-      lost_ = received_ = 0;
-      since_ = now;
-    }
+    if (now - since_ < std::chrono::seconds(1))
+      return;
+    if (sum_.lost || sum_.recovered || sum_.late)
+      brls::Logger::warning(
+        "Video RTP: last second: {} packets, {} lost, {} recovered by retransmission, {} late "
+        "(reordered, up to {} ms), {} NACKed, {} duplicate retransmissions",
+        sum_.received,
+        sum_.lost,
+        sum_.recovered,
+        sum_.late,
+        std::chrono::duration_cast<std::chrono::milliseconds>(sum_.lateMax).count(),
+        sum_.nacked,
+        sum_.duplicates
+      );
+    sum_ = {};
+    since_ = now;
   }
 
 private:
-  std::function<void()> onLoss_;
-  std::function<void(uint64_t, uint64_t)> onPackets_;
-  bool started_ = false;
-  uint16_t last_ = 0;
-  uint64_t lost_ = 0, received_ = 0;
+  RtpReceiveBuffer::Counters sum_;
   std::chrono::steady_clock::time_point since_ = std::chrono::steady_clock::now();
 };
 static constexpr int OPUS_PT = 111;
@@ -235,16 +216,44 @@ void WebRtcSession::createVideo(const VideoConfig &config) {
   peer.videoTrack = peer.pc->addTrack(video);
   peer.videoTrack->setMediaHandler(std::make_shared<rtc::H264RtpDepacketizer>());
   peer.videoTrack->chainMediaHandler(std::make_shared<rtc::RtcpReceivingSession>());
-  peer.videoTrack->chainMediaHandler(std::make_shared<RtpLossCounter>(
-    [this] {
-      if (onVideoLoss)
-        onVideoLoss();
-    },
-    [this](uint64_t received, uint64_t lost) {
-      rtpReceived_ += received;
-      rtpLost_ += lost;
-    }
-  ));
+  // Chained last so it sees the raw packets first: reorders them, NACKs the
+  // missing ones and unwraps RTX before RTCP stats and depacketizing
+  std::vector<int> mediaPts;
+  std::map<int, int> rtxPts;
+  for (const auto &o : H264_OFFERS) {
+    mediaPts.push_back(o.pt);
+    rtxPts[o.rtxPt] = o.pt;
+  }
+  auto receiveBuffer = std::make_shared<RtpReceiveBuffer>(mediaPts, rtxPts);
+  receiveBuffer->onCounters = [this, log = std::make_shared<RtpLossLog>()](
+                                const RtpReceiveBuffer::Counters &d
+                              ) {
+    rtpReceived_ += d.received;
+    rtpLost_ += d.lost;
+    rtpRecovered_ += d.recovered;
+    log->add(d);
+  };
+  receiveBuffer->onLoss = [this] {
+    if (onVideoLoss)
+      onVideoLoss();
+  };
+  receiveBuffer->onNackIgnored = [] {
+    brls::Logger::warning(
+      "Video RTP: the server doesn't retransmit lost packets (NACKs unanswered), only waiting "
+      "out reordering from now on"
+    );
+  };
+  receiveBuffer->onDelayChange = [](auto nackDelay, auto reorderWait) {
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+    brls::Logger::debug(
+      "Video RTP: first NACK after {} ms, reorder wait {} ms (from the lateness of reordered "
+      "packets)",
+      duration_cast<milliseconds>(nackDelay).count(),
+      duration_cast<milliseconds>(reorderWait).count()
+    );
+  };
+  peer.videoTrack->chainMediaHandler(receiveBuffer);
   peer.videoTrack->onFrame([this,
                             generation = peer.generation](rtc::binary data, rtc::FrameInfo info) {
     {
@@ -381,6 +390,9 @@ void WebRtcSession::setRemoteAnswer(StreamType type, const std::string &sdp) {
     );
     return;
   }
+  brls::Logger::debug(
+    "{}: answer\n{}", type == proto::ST_VIDEO ? "VideoAndAudioStream" : "InputStream", sdp
+  );
   try {
     pc->setRemoteDescription(rtc::Description(sdp, rtc::Description::Type::Answer));
   } catch (const std::exception &e) {
@@ -498,6 +510,7 @@ WebRtcSession::Stats WebRtcSession::stats() const {
   s.audioBytesReceived = audioBytes_;
   s.rtpPacketsReceived = rtpReceived_;
   s.rtpPacketsLost = rtpLost_;
+  s.rtpPacketsRecovered = rtpRecovered_;
   s.keyframeRequests = keyframeRequests_;
   if (video) {
     s.videoRtt = video->rtt();

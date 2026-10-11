@@ -30,7 +30,10 @@ using FramePtr = std::shared_ptr<AVFrame>;
 // VideoToolbox on macOS) and copies hardware frames to system memory.
 class VideoDecoder {
 public:
-  static constexpr size_t MAX_QUEUED_PACKETS = 4;
+  // Room for the burst RtpReceiveBuffer releases once a held-back gap fills
+  // (up to its MAX_WAIT, 150 ms = 18 frames at 120 fps); overflowing drops the
+  // backlog and waits for a keyframe. Decoding a frame takes ~5 ms on Switch.
+  static constexpr size_t MAX_QUEUED_PACKETS = 20;
   // After a decode error or dropped packets, skip to the next keyframe, asking
   // for one this often, and give up waiting after the limit
   static constexpr std::chrono::milliseconds KEYFRAME_REQUEST_INTERVAL{1000};

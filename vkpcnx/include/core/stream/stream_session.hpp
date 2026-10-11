@@ -96,6 +96,7 @@ public:
     size_t videoBytes = 0;
     uint64_t rtpPacketsReceived = 0;
     uint64_t rtpPacketsLost = 0;
+    uint64_t rtpPacketsRecovered = 0;
     uint64_t keyframeRequests = 0;
     media::VideoDecoder::Stats decoder;
     size_t audioBufferedFrames = 0;

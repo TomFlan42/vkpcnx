@@ -386,6 +386,14 @@ if (VKPCNX_BUILD_TESTS AND PLATFORM_DESKTOP)
     target_link_libraries(diag_test PRIVATE ZLIB::ZLIB)
     add_test(NAME diag_test COMMAND diag_test)
 
+    add_executable(rtp_receive_buffer_test
+        tests/rtp_receive_buffer_test.cpp
+        vkpcnx/src/core/stream/rtp_receive_buffer.cpp)
+    set_target_properties(rtp_receive_buffer_test PROPERTIES CXX_STANDARD 17)
+    target_include_directories(rtp_receive_buffer_test PRIVATE vkpcnx/include)
+    target_link_libraries(rtp_receive_buffer_test PRIVATE LibDataChannel::LibDataChannelStatic)
+    add_test(NAME rtp_receive_buffer_test COMMAND rtp_receive_buffer_test)
+
     # Headless end-to-end run against tests/mock_server.py (not registered with ctest)
     file(GLOB_RECURSE E2E_SRC vkpcnx/src/core/*.cpp)
     add_executable(stream_e2e_test tests/stream_e2e_test.cpp ${E2E_SRC} ${PROTO_GEN_SRCS})
