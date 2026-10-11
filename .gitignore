@@ -16,3 +16,4 @@ builddir
 *.suprx
 libromfs-generator
 !.github/
+__pycache__/
