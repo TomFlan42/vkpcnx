@@ -51,6 +51,11 @@ int main(int argc, char *argv[]) {
     }
     if (arg == "--sw-decode")
       setenv("VKPCNX_SW_DECODE", "1", 1); // read by VideoDecoder::open()
+    // The Switch has no environment; these let nxlink set the mock-server ones
+    else if (arg == "--insecure-tls")
+      setenv("VKPCNX_INSECURE_TLS", "1", 1);
+    else if (arg.rfind("--play-url=", 0) == 0)
+      setenv("VKPCNX_PLAY_URL", std::string(arg.substr(11)).c_str(), 1);
     else if (arg.rfind("--test-crash=", 0) == 0)
       testCrash = arg.substr(13);
   }

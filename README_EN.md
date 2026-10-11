@@ -66,6 +66,13 @@ venv/bin/python tests/mock_server.py --pb pb --cert cert.pem --key key.pem --end
 VKPCNX_INSECURE_TLS=1 VKPCNX_PLAY_URL='playkey:///?host=localhost&port=19000&token=test' ./build/vkpcnx
 ```
 
+To test on a Switch, pass the `--public-host` to the mock server with the machine's LAN IP address (otherwise the console looks for the game server at `localhost`, i.e. itself), and pass the settings as arguments to `nxlink`:
+
+```bash
+venv/bin/python tests/mock_server.py --pb pb --cert cert.pem --key key.pem --public-host 192.168.1.10 --end-after 30
+nxlink -s build-switch-debug/vkpcnx.nro -- --insecure-tls '--play-url=playkey:///?host=192.168.1.10&port=19000&token=test'
+```
+
 ## Debugging
 
 ### Launch arguments
@@ -75,6 +82,8 @@ The Switch has no environment variables, but arguments can be passed via nxlink:
 - `--log-level=LEVEL` — console log level: `ERROR`, `WARNING`, `INFO` (default), `DEBUG` or `VERBOSE`. The log file always contains full detail. Takes precedence over `VKPCNX_LOG_LEVEL`.
 - `--create-report` — create a bug report and exit without starting the UI (for when the app can't get as far as its UI). The report path is printed to the console.
 - `--sw-decode` — force software video decoding (same as `VKPCNX_SW_DECODE=1`).
+- `--insecure-tls` — same as `VKPCNX_INSECURE_TLS=1`.
+- `--play-url=URL` — same as `VKPCNX_PLAY_URL=URL`.
 - `--test-crash=segv|abort|throw` — crash the app on purpose 2 seconds after the UI is up, to check the crash section in the log, the report offer and symbolization.
 
 ### Environment variables

@@ -64,6 +64,13 @@ venv/bin/python tests/mock_server.py --pb pb --cert cert.pem --key key.pem --end
 VKPCNX_INSECURE_TLS=1 VKPCNX_PLAY_URL='playkey:///?host=localhost&port=19000&token=test' ./build/vkpcnx
 ```
 
+Для запуска на Switch mock-серверу нужно передать `--public-host` с IP-адресом компьютера в локальной сети (иначе консоль будет искать игровой сервер на `localhost`, то есть у себя), а настройки — аргументами через `nxlink`:
+
+```bash
+venv/bin/python tests/mock_server.py --pb pb --cert cert.pem --key key.pem --public-host 192.168.1.10 --end-after 30
+nxlink -s build-switch-debug/vkpcnx.nro -- --insecure-tls '--play-url=playkey:///?host=192.168.1.10&port=19000&token=test'
+```
+
 ## Отладка
 
 ### Аргументы запуска
@@ -73,6 +80,8 @@ VKPCNX_INSECURE_TLS=1 VKPCNX_PLAY_URL='playkey:///?host=localhost&port=19000&tok
 - `--log-level=УРОВЕНЬ` — уровень логирования в консоли: `ERROR`, `WARNING`, `INFO` (по умолчанию), `DEBUG` или `VERBOSE`. В файл лога всегда пишется подробная информация. Приоритетнее, чем `VKPCNX_LOG_LEVEL`.
 - `--create-report` — создать отчёт об ошибке и выйти, не запуская интерфейс (на случай, если приложение не доходит до UI). Путь к отчёту будет выведен в консоль.
 - `--sw-decode` — принудительно использовать программный декодер видео (то же, что и `VKPCNX_SW_DECODE=1`).
+- `--insecure-tls` — то же, что `VKPCNX_INSECURE_TLS=1`.
+- `--play-url=URL` — то же, что `VKPCNX_PLAY_URL=URL`.
 - `--test-crash=segv|abort|throw` — намеренно крашнуть приложение через 2 секунды после запуска UI, чтобы проверить запись краша в лог, предложение создать отчёт и символизацию.
 
 ### Переменные окружения

@@ -10,6 +10,10 @@ DataChannel) without a real account.
 
 then run the client with
     VKPCNX_INSECURE_TLS=1 VKPCNX_PLAY_URL='playkey:///?host=localhost&port=19000&token=test' ./vkpcnx
+
+For a Switch, add --public-host <the Mac's LAN IP> and pass the same settings
+as arguments (the Switch has no environment):
+    nxlink -s vkpcnx.nro -- --insecure-tls '--play-url=playkey:///?host=<ip>&port=19000&token=test'
 """
 import argparse
 import asyncio
@@ -192,7 +196,7 @@ class MockCloud:
                 for i in range(2):
                     s = lst.servers.add()
                     s.host = "127.0.0.1"; s.port = self.args.ping_port + i; s.server_id = 100 + i
-                    s.public_dns_name = "localhost"
+                    s.public_dns_name = self.args.public_host
                 await ws.send(frame(pc.MC_ZONE_SERVER_LIST, lst.SerializeToString()))
             elif t == pc.CM_ZONE_SERVER_PINGS:
                 p = cm.ZoneServerPings(); p.ParseFromString(payload)
@@ -209,7 +213,7 @@ class MockCloud:
                 dp = mc.DirectionPlay()
                 dp.user_id = self.user_id; dp.token_session = b"session-token"; dp.port = self.args.gs_port
                 dp.name = b"mock-gs"; dp.ip = "127.0.0.1"; dp.session_id = self.session_id
-                dp.connect_id = self.connect_id; dp.public_dns_name = "localhost"; dp.game_id = 1
+                dp.connect_id = self.connect_id; dp.public_dns_name = self.args.public_host; dp.game_id = 1
                 await ws.send(frame(pc.MC_DIRECTION_PLAY, dp.SerializeToString()))
             elif t == pc.CM_CONNECT_SERVER:
                 s = cm.ServerConnectionStatus(); s.ParseFromString(payload)
@@ -449,6 +453,8 @@ async def main():
     ap.add_argument("--manager-port", type=int, default=19000)
     ap.add_argument("--ping-port", type=int, default=19001)
     ap.add_argument("--gs-port", type=int, default=19003)
+    ap.add_argument("--public-host", default="localhost",
+                    help="host the client is told to reach the ping and game servers at (the Mac's LAN IP for a Switch)")
     ap.add_argument("--end-after", type=float, default=0, help="send SC_EXIT_GAME N s after streams status")
     ap.add_argument("--time-left-warning", type=float, default=0,
                     help="send 901 s left, then 899 s left N s later (crosses the 15-min LED warning)")
@@ -470,7 +476,7 @@ async def main():
     ]
     for s in servers:
         await s
-    log.info("mock cloud: manager wss://localhost:%d, ping %d/%d, game server %d", args.manager_port, args.ping_port, args.ping_port + 1, args.gs_port)
+    log.info("mock cloud: manager wss://%s:%d, ping %d/%d, game server %d", args.public_host, args.manager_port, args.ping_port, args.ping_port + 1, args.gs_port)
     await asyncio.Future()
 
 if __name__ == "__main__":
