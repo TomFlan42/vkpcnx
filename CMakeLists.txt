@@ -62,6 +62,21 @@ if (USE_LIBROMFS)
     add_libromfs(${PROJECT_NAME} ${PROJECT_RESOURCES})
 endif ()
 
+# Apply patches under cmake/patches/ onto the checked-out sources (the project
+# and its submodules) before anything is built
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/library/borealis")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/library/borealis
+            -DPATCH_DIR=${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/library/borealis
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplyPatches.cmake
+        RESULT_VARIABLE BOREALIS_PATCH_RESULT
+    )
+    if (NOT BOREALIS_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to apply borealis patches")
+    endif ()
+endif ()
+
 add_subdirectory(library)
 
 find_package(Threads REQUIRED)
