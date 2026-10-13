@@ -1,0 +1,12 @@
+diff --git a/library/lib/core/application.cpp b/library/lib/core/application.cpp
+--- a/library/lib/core/application.cpp
++++ b/library/lib/core/application.cpp
+@@ -786,7 +786,7 @@ void Application::giveFocus(View* view)
+     View* oldFocus = Application::currentFocus;
+     View* newFocus = view ? view->getDefaultFocus() : nullptr;
+ 
+-    if (oldFocus != newFocus && newFocus != nullptr)
++    if (oldFocus != newFocus)
+     {
+         if (oldFocus)
+             oldFocus->onFocusLost();
