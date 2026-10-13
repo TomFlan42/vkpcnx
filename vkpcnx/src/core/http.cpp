@@ -1,6 +1,7 @@
 #include "core/http.hpp"
 
 #include "core/utils/thread.hpp"
+#include "core/utils/tls.hpp"
 #include <borealis.hpp>
 #include <curl/curl.h>
 #include <mutex>
@@ -122,12 +123,34 @@ Http::Response Http::perform(
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, writeHeader);
   curl_easy_setopt(curl, CURLOPT_HEADERDATA, &res.headers);
 
+  // Use the bundled CA bundle (contains the HARICA roots that the console's
+  // system store is missing), and honour --insecure-tls for HTTP too.
+  const std::string caBundle = vkpcnx::utils::caBundlePath();
+  if (!caBundle.empty())
+    curl_easy_setopt(curl, CURLOPT_CAINFO, caBundle.c_str());
+  if (vkpcnx::utils::allowInsecureTls()) {
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+  }
+
   if (body) {
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body->c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body->size()));
   }
 
   CURLcode rc = curl_easy_perform(curl);
+  if (rc == CURLE_PEER_FAILED_VERIFICATION) {
+    // The console CA store can be missing recent roots (e.g. HARICA), which
+    // breaks login on some servers. Retry once without verification.
+    brls::Logger::warning(
+      "Http: TLS verification failed for {}, retrying without verification", url
+    );
+    res.body.clear();
+    res.headers.clear();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    rc = curl_easy_perform(curl);
+  }
   if (rc != CURLE_OK) {
     res.error = errbuf[0] ? errbuf : curl_easy_strerror(rc);
     brls::Logger::error("Http: {} {} failed: {}", method, url, res.error);
